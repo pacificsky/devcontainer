@@ -7,6 +7,10 @@ on:
       - '.github/workflows/daily-docker-build.yml'
       - '.github/workflows/docker-pr-build.yml'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
