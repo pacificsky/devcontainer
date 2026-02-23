@@ -104,8 +104,8 @@ jobs:
           tags: |
             type=ref,event=branch
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=daily-{{date 'YYYY-MM-DD'}}
-            type=raw,value={{date 'YYYY-MM-DD'}}
+            type=raw,value=daily-{{date 'YYYY-MM-DD'}},enable={{is_default_branch}}
+            type=raw,value={{date 'YYYY-MM-DD'}},enable={{is_default_branch}}
 
       - name: Create manifest list and push
         working-directory: /tmp/digests
