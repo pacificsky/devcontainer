@@ -5,10 +5,6 @@ on:
     # Run daily at 3 AM PST (11:00 UTC)
     - cron: '0 11 * * *'
   workflow_dispatch: # Allow manual triggering
-  push:
-    paths:
-      - 'Dockerfile'
-      - '.github/workflows/daily-docker-build.yml'
 
 env:
   REGISTRY: ghcr.io
