@@ -1,0 +1,57 @@
+# Lite variant: dev tools + AI agents, no cloud CLIs (AWS/Azure/GCP)
+# For the full image with cloud CLIs, use Dockerfile
+FROM mcr.microsoft.com/devcontainers/base:ubuntu
+
+# Layer 1: Base system dependencies and utilities (most stable)
+RUN apt-get update && \
+    apt-get install -y \
+        curl wget unzip \
+        jq yq \
+        vim nano \
+        make \
+        build-essential \
+        python3 python3-pip && \
+    # Cleanup
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Layer 2: Install uv (modern Python package manager)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+# Layer 3: Install Go
+RUN GO_VERSION="1.26.0" && \
+    ARCH=$(dpkg --print-architecture) && \
+    curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" | tar -xzC /usr/local && \
+    echo 'export PATH=/usr/local/go/bin:$PATH' >> /etc/profile
+
+# Layer 4: Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    echo 'source ~/.cargo/env' >> /etc/profile
+
+# Layer 5: Install Node.js LTS
+RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
+    apt-get install -y nodejs
+
+# Layer 6: Install GitHub CLI
+RUN mkdir -p -m 755 /etc/apt/keyrings && \
+    wget -nv -O- https://cli.github.com/packages/githubcli-archive-keyring.gpg | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null && \
+    chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
+    apt-get update && apt-get install -y gh && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Layer 7: AI CLI tools (most volatile - frequent releases)
+USER vscode
+
+# Install Claude Code
+RUN curl -fsSL https://claude.ai/install.sh | bash
+
+# Install OpenAI Codex
+RUN sudo npm install -g @openai/codex
+
+# Layer 8: Final environment setup
+ENV PATH="/home/vscode/.local/bin:/usr/local/go/bin:/home/vscode/.cargo/bin:${PATH}"
+ENV DISABLE_AUTOUPDATER=true
+
+USER vscode

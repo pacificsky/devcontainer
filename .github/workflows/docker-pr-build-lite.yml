@@ -1,0 +1,59 @@
+name: Docker PR Build (Lite)
+
+on:
+  pull_request:
+    paths:
+      - 'Dockerfile.lite'
+      - '.github/workflows/daily-docker-build-lite.yml'
+      - '.github/workflows/docker-pr-build-lite.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.lite
+          load: true
+          tags: devcontainer-lite:pr-test
+          cache-from: type=gha,scope=lite-pr
+          cache-to: type=gha,scope=lite-pr,mode=max
+
+      - name: Test image functionality
+        run: |
+          docker run --rm devcontainer-lite:pr-test /bin/bash -c "
+            echo 'Testing installations...'
+
+            if command -v claude >/dev/null 2>&1; then
+              echo '✅ Claude Code installed'
+            else
+              echo '❌ Claude Code missing' && exit 1
+            fi
+
+            if command -v codex >/dev/null 2>&1; then
+              echo '✅ OpenAI Codex installed'
+            else
+              echo '❌ OpenAI Codex missing' && exit 1
+            fi
+
+            if command -v gh >/dev/null 2>&1; then
+              echo '✅ GitHub CLI installed'
+            else
+              echo '❌ GitHub CLI missing' && exit 1
+            fi
+
+            echo 'All core tools are properly installed!'
+          "
