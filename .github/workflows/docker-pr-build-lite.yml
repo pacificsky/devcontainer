@@ -1,18 +1,18 @@
-name: Docker PR Build
+name: Docker PR Build (Lite)
 
 on:
   pull_request:
     paths:
-      - 'Dockerfile'
-      - '.github/workflows/daily-docker-build.yml'
-      - '.github/workflows/docker-pr-build.yml'
+      - 'Dockerfile.lite'
+      - '.github/workflows/daily-docker-build-lite.yml'
+      - '.github/workflows/docker-pr-build-lite.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref }}
   cancel-in-progress: true
 
 jobs:
-  build-and-test-full:
+  build-and-test-lite:
     runs-on: ubuntu-latest
 
     steps:
@@ -26,15 +26,15 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile
+          file: Dockerfile.lite
           load: true
-          tags: devcontainer:pr-test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: devcontainer-lite:pr-test
+          cache-from: type=gha,scope=lite-pr
+          cache-to: type=gha,scope=lite-pr,mode=max
 
       - name: Test image functionality
         run: |
-          docker run --rm devcontainer:pr-test /bin/bash -c "
+          docker run --rm devcontainer-lite:pr-test /bin/bash -c "
             echo 'Testing installations...'
 
             if command -v claude >/dev/null 2>&1; then
