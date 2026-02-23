@@ -20,7 +20,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 # Layer 3: Install Go
 RUN GO_VERSION="1.26.0" && \
-    curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" | tar -xzC /usr/local && \
+    ARCH=$(dpkg --print-architecture) && \
+    curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" | tar -xzC /usr/local && \
     echo 'export PATH=/usr/local/go/bin:$PATH' >> /etc/profile
 
 # Layer 4: Install Rust
