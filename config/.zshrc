@@ -106,6 +106,7 @@ source $ZSH/oh-my-zsh.sh
 
 alias gs='git status'
 alias gbh="git for-each-ref --sort=committerdate refs/heads/ --format='%(HEAD) %(color:yellow)%(refname:short)%(color:reset) - %(color:red)%(objectname:short)%(color:reset) - %(contents:subject) - %(authorname) (%(color:green)%(committerdate:relative)%(color:reset))'"
+alias claudy='claude --dangerously-skip-permissions'
 
 # Fancy function that is effectively an alias for `gh pr merge`
 ghprm() {
