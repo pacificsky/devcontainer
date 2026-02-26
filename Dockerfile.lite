@@ -21,17 +21,7 @@ RUN printf 'path-include /usr/share/doc/byobu/*\n' > /etc/dpkg/dpkg.cfg.d/byobu 
 # Layer 2: Install uv (modern Python package manager)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-# Layer 3: Install Go
-RUN GO_VERSION="1.26.0" && \
-    ARCH=$(dpkg --print-architecture) && \
-    curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" | tar -xzC /usr/local && \
-    echo 'export PATH=/usr/local/go/bin:$PATH' >> /etc/profile
-
-# Layer 4: Install Rust
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
-    echo 'source ~/.cargo/env' >> /etc/profile
-
-# Layer 5: Install Node.js LTS
+# Layer 3: Install Node.js LTS
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
     apt-get install -y nodejs
 
@@ -63,7 +53,7 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 RUN sudo npm install -g @openai/codex
 
 # Layer 9: Final environment setup
-ENV PATH="/home/vscode/.local/bin:/usr/local/go/bin:/home/vscode/.cargo/bin:${PATH}"
+ENV PATH="/home/vscode/.local/bin:${PATH}"
 ENV SHELL=/usr/bin/zsh
 ENV DISABLE_AUTOUPDATER=true
 

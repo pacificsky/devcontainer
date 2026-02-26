@@ -11,7 +11,7 @@ Docker devcontainer images pre-loaded with AI coding agents (Claude Code, OpenAI
 - **`Dockerfile`** (full): Dev tools + cloud CLIs (AWS, Azure, GCP) + GitHub CLI
 - **`Dockerfile.lite`**: Dev tools + GitHub CLI only, no cloud CLIs
 
-Both share the same base (`mcr.microsoft.com/devcontainers/base:ubuntu`) and toolchain layers (Go, Rust, Node.js LTS, Python 3 + uv). They diverge at the cloud CLI layer. Container user is `vscode`.
+Both share the same base (`mcr.microsoft.com/devcontainers/base:ubuntu`). The full image includes Go, Rust, Node.js LTS, Python 3 + uv. The lite image includes Node.js LTS, Python 3 + uv (no Go/Rust). They also diverge at the cloud CLI layer. Container user is `vscode`.
 
 ## Build Commands
 
