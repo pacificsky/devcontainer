@@ -3,7 +3,9 @@
 FROM mcr.microsoft.com/devcontainers/base:ubuntu
 
 # Layer 1: Base system dependencies and utilities (most stable)
-RUN apt-get update && \
+# Allow byobu doc files (base image excludes /usr/share/doc/*)
+RUN printf 'path-include /usr/share/doc/byobu/*\n' > /etc/dpkg/dpkg.cfg.d/byobu && \
+    apt-get update && \
     apt-get install -y \
         curl wget unzip \
         jq yq \
