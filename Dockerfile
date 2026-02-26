@@ -10,7 +10,8 @@ RUN apt-get update && \
         vim nano \
         make \
         build-essential \
-        python3 python3-pip && \
+        python3 python3-pip \
+        byobu && \
     # Cleanup
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -60,17 +61,28 @@ RUN ARCH=$(dpkg --print-architecture) && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Layer 7: AI CLI tools (most volatile - frequent releases)
+# Layer 7: Shell configuration
+RUN chsh -s /usr/bin/zsh vscode
 USER vscode
+COPY config/.zshrc /home/vscode/.zshrc
+COPY config/.p10k.zsh /home/vscode/.p10k.zsh
+RUN git clone --depth=1 https://github.com/romkatv/powerlevel10k.git \
+    ${ZSH_CUSTOM:-/home/vscode/.oh-my-zsh/custom}/themes/powerlevel10k && \
+    # Enable byobu auto-launch on login
+    printf '_byobu_sourced=1 . /usr/bin/byobu-launch 2>/dev/null || true\n' >> ~/.zprofile && \
+    printf '_byobu_sourced=1 . /usr/bin/byobu-launch 2>/dev/null || true\n' >> ~/.profile
 
+# Layer 8: AI CLI tools (most volatile - frequent releases)
 # Install Claude Code
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
 # Install OpenAI Codex
 RUN sudo npm install -g @openai/codex
 
-# Layer 8: Final environment setup
+# Layer 9: Final environment setup
 ENV PATH="/home/vscode/.local/bin:/usr/local/go/bin:/home/vscode/.cargo/bin:${PATH}"
+ENV SHELL=/usr/bin/zsh
 ENV DISABLE_AUTOUPDATER=true
 
 USER vscode
+CMD ["zsh", "-l"]
