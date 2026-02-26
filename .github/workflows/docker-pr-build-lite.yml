@@ -2,10 +2,6 @@ name: Docker PR Build (Lite)
 
 on:
   pull_request:
-    paths:
-      - 'Dockerfile.lite'
-      - '.github/workflows/daily-docker-build-lite.yml'
-      - '.github/workflows/docker-pr-build-lite.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref }}
@@ -16,13 +12,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Check for relevant changes
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            dockerfile:
+              - 'Dockerfile.lite'
+              - '.github/workflows/daily-docker-build-lite.yml'
+              - '.github/workflows/docker-pr-build-lite.yml'
+
       - name: Checkout repository
+        if: steps.changes.outputs.dockerfile == 'true'
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
+        if: steps.changes.outputs.dockerfile == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Build Docker image
+        if: steps.changes.outputs.dockerfile == 'true'
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -33,6 +42,7 @@ jobs:
           cache-to: type=gha,scope=lite-pr,mode=max
 
       - name: Test image functionality
+        if: steps.changes.outputs.dockerfile == 'true'
         run: |
           docker run --rm devcontainer-lite:pr-test /bin/bash -c "
             echo 'Testing installations...'
