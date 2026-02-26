@@ -3,8 +3,11 @@
 FROM mcr.microsoft.com/devcontainers/base:ubuntu
 
 # Layer 1: Base system dependencies and utilities (most stable)
-# Allow byobu doc files (base image excludes /usr/share/doc/*)
-RUN printf 'path-include /usr/share/doc/byobu/*\n' > /etc/dpkg/dpkg.cfg.d/byobu && \
+# Re-include byobu docs/man (base image minimized via /etc/dpkg/dpkg.cfg.d/excludes)
+# Filename zz- ensures this is processed AFTER excludes so includes win
+# Remove man stub diversion so man-db can install the real man binary
+RUN printf 'path-include /usr/share/doc/byobu/*\npath-include /usr/share/man/man1/byobu*\n' > /etc/dpkg/dpkg.cfg.d/zz-byobu && \
+    rm -f /usr/bin/man && dpkg-divert --quiet --remove --rename /usr/bin/man && \
     apt-get update && \
     apt-get install -y \
         curl wget unzip \
@@ -13,7 +16,8 @@ RUN printf 'path-include /usr/share/doc/byobu/*\n' > /etc/dpkg/dpkg.cfg.d/byobu 
         make \
         build-essential \
         python3 python3-pip \
-        byobu && \
+        byobu \
+        man-db && \
     # Cleanup
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
