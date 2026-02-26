@@ -13,6 +13,13 @@ Docker devcontainer images pre-loaded with AI coding agents (Claude Code, OpenAI
 
 Both share the same base (`mcr.microsoft.com/devcontainers/base:ubuntu`). The full image includes Go, Rust, Node.js LTS, Python 3 + uv. The lite image includes Node.js LTS, Python 3 + uv (no Go/Rust). They also diverge at the cloud CLI layer. Container user is `vscode`.
 
+## Base Image Quirks
+
+The base image is a **minimized Ubuntu** — docs, man pages, and non-essential content are stripped to reduce size. This causes two issues:
+
+1. **dpkg doc excludes**: `/etc/dpkg/dpkg.cfg.d/excludes` blocks `/usr/share/doc/*` and `/usr/share/man/*`. To include docs/man for a specific package, add a `path-include` config file named `zz-<pkg>` (the `zz-` prefix ensures it sorts alphabetically **after** `excludes`, so includes win).
+2. **Fake `man` binary**: `/usr/bin/man` is replaced with a stub script via `dpkg-divert`. To restore real man pages, remove the stub (`rm -f /usr/bin/man`), undo the diversion (`dpkg-divert --quiet --remove --rename /usr/bin/man`), and install `man-db`.
+
 ## Build Commands
 
 ```bash
@@ -41,12 +48,8 @@ Daily builds: multi-arch (amd64/arm64) with digest-based merge, tagged `latest`,
 
 ## Dockerfile Layer Strategy
 
-Layers are ordered by stability (most stable first) to maximize cache hits:
-1. System packages (apt)
-2. uv (Python package manager)
-3. Go
-4. Rust
-5. Node.js LTS
-6. Cloud CLIs (full only) / GitHub CLI
-7. AI tools (Claude Code, Codex) — most volatile
-8. ENV/PATH setup
+Layers are ordered by stability (most stable first) to maximize cache hits.
+
+**Full image**: System packages → uv → Go → Rust → Node.js LTS → Cloud CLIs + GitHub CLI → Shell config → AI tools → ENV/PATH
+
+**Lite image**: System packages → uv → Node.js LTS → GitHub CLI → Shell config → AI tools → ENV/PATH
