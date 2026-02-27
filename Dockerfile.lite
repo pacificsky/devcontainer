@@ -2,6 +2,15 @@
 # For the full image with cloud CLIs, use Dockerfile
 FROM mcr.microsoft.com/devcontainers/base:ubuntu
 
+# Remap vscode user to macOS-default UID/GID (501:20)
+# GID 20 is typically 'dialout' on Ubuntu — move it out of the way first
+RUN if getent group 20 > /dev/null 2>&1; then \
+        groupmod -g 9999 "$(getent group 20 | cut -d: -f1)"; \
+    fi && \
+    groupmod -g 20 vscode && \
+    usermod -u 501 -g 20 vscode && \
+    chown -R 501:20 /home/vscode
+
 # Layer 1: Base system dependencies and utilities (most stable)
 # Re-include byobu docs/man (base image minimized via /etc/dpkg/dpkg.cfg.d/excludes)
 # Filename zz- ensures this is processed AFTER excludes so includes win
