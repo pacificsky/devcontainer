@@ -79,8 +79,8 @@ RUN ARCH=$(dpkg --print-architecture) && \
 # Layer 7: Shell configuration
 RUN chsh -s /usr/bin/zsh vscode
 USER vscode
-COPY config/.zshrc /home/vscode/.zshrc
-COPY config/.p10k.zsh /home/vscode/.p10k.zsh
+COPY --chown=vscode:vscode config/.zshrc /home/vscode/.zshrc
+COPY --chown=vscode:vscode config/.p10k.zsh /home/vscode/.p10k.zsh
 RUN git clone --depth=1 https://github.com/romkatv/powerlevel10k.git \
     ${ZSH_CUSTOM:-/home/vscode/.oh-my-zsh/custom}/themes/powerlevel10k && \
     # Enable byobu auto-launch on login
