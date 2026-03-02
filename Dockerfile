@@ -34,21 +34,29 @@ RUN printf 'path-include /usr/share/doc/byobu/*\npath-include /usr/share/man/man
 # Layer 2: Install uv (modern Python package manager)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-# Layer 3: Install Go
+# Layer 3: Install Homebrew
+USER vscode
+RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+USER root
+
+# Layer 3.1: install prek (pre-commit implementation in Rust)
+COPY --from=ghcr.io/j178/prek:v0.3.4 /prek /usr/local/bin/prek
+
+# Layer 4: Install Go
 RUN GO_VERSION="1.26.0" && \
     ARCH=$(dpkg --print-architecture) && \
     curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" | tar -xzC /usr/local && \
     echo 'export PATH=/usr/local/go/bin:$PATH' >> /etc/profile
 
-# Layer 4: Install Rust
+# Layer 5: Install Rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
     echo 'source ~/.cargo/env' >> /etc/profile
 
-# Layer 5: Install Node.js LTS
+# Layer 6: Install Node.js LTS
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
     apt-get install -y nodejs
 
-# Layer 6: Install cloud CLIs (moderately stable)
+# Layer 7: Install cloud CLIs (moderately stable)
 RUN ARCH=$(dpkg --print-architecture) && \
     if [ "$ARCH" = "amd64" ]; then \
         curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"; \
@@ -76,7 +84,7 @@ RUN ARCH=$(dpkg --print-architecture) && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Layer 7: Shell configuration
+# Layer 8: Shell configuration
 RUN chsh -s /usr/bin/zsh vscode
 USER vscode
 COPY --chown=vscode:vscode config/.zshrc /home/vscode/.zshrc
@@ -87,9 +95,6 @@ RUN git clone --depth=1 https://github.com/romkatv/powerlevel10k.git \
     printf '_byobu_sourced=1 . /usr/bin/byobu-launch 2>/dev/null || true\n' >> ~/.zprofile && \
     printf '_byobu_sourced=1 . /usr/bin/byobu-launch 2>/dev/null || true\n' >> ~/.profile
 
-# Layer 8: Install Prek (pre-commit hook manager)
-RUN curl --proto '=https' --tlsv1.2 -LsSf https://github.com/j178/prek/releases/download/v0.3.4/prek-installer.sh | sh
-
 # Layer 9: AI CLI tools (most volatile - frequent releases)
 # Install Claude Code
 RUN curl -fsSL https://claude.ai/install.sh | bash
@@ -98,7 +103,7 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 RUN sudo npm install -g @openai/codex
 
 # Layer 10: Final environment setup
-ENV PATH="/home/vscode/.local/bin:/usr/local/go/bin:/home/vscode/.cargo/bin:${PATH}"
+ENV PATH="/home/vscode/.local/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/go/bin:/home/vscode/.cargo/bin:${PATH}"
 ENV SHELL=/usr/bin/zsh
 ENV DISABLE_AUTOUPDATER=true
 
