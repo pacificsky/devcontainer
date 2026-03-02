@@ -74,7 +74,7 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 RUN sudo npm install -g @openai/codex
 
 # Layer 8: Final environment setup
-ENV PATH="/home/linuxbrew/.linuxbrew/bin:${PATH}"
+ENV PATH="/home/vscode/.local/bin:/home/linuxbrew/.linuxbrew/bin:${PATH}"
 ENV SHELL=/usr/bin/zsh
 ENV DISABLE_AUTOUPDATER=true
 
