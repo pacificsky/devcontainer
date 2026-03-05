@@ -50,6 +50,8 @@ jobs:
           file: Dockerfile
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          build-args: |
+            CACHEBUST=${{ github.run_id }}
           cache-from: type=gha,scope=${{ steps.platform.outputs.slug }}
           cache-to: type=gha,scope=${{ steps.platform.outputs.slug }},mode=max
 
@@ -138,6 +140,7 @@ jobs:
             # Test Claude Code
             if command -v claude >/dev/null 2>&1; then
               echo '✅ Claude Code installed'
+              claude --version
             else
               echo '❌ Claude Code missing' && exit 1
             fi
@@ -145,6 +148,7 @@ jobs:
             # Test OpenAI Codex
             if command -v codex >/dev/null 2>&1; then
               echo '✅ OpenAI Codex installed'
+              codex --version
             else
               echo '❌ OpenAI Codex missing' && exit 1
             fi
@@ -152,6 +156,7 @@ jobs:
             # Test GitHub CLI
             if command -v gh >/dev/null 2>&1; then
               echo '✅ GitHub CLI installed'
+              gh --version
             else
               echo '❌ GitHub CLI missing' && exit 1
             fi

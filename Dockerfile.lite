@@ -34,6 +34,10 @@ RUN printf 'path-include /usr/share/doc/byobu/*\npath-include /usr/share/man/man
 # Layer 2: Install uv (modern Python package manager)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
+# Cache-bust from here down so daily builds pick up new versions of
+# everything installed via script (Homebrew, Node, GitHub CLI, AI tools)
+ARG CACHEBUST
+
 # Layer 3: Install Homebrew
 USER vscode
 RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
