@@ -23,6 +23,7 @@ jobs:
           filters: |
             dockerfile:
               - 'Dockerfile.lite'
+              - 'scripts/entrypoint.sh'
               - '.github/workflows/daily-docker-build-lite.yml'
               - '.github/workflows/docker-pr-build-lite.yml'
 

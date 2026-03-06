@@ -74,6 +74,12 @@ RUN git clone --depth=1 https://github.com/romkatv/powerlevel10k.git \
 # Install Claude Code
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
+# Stage Claude installation outside /home/vscode so it survives volume mounts
+RUN CLAUDE_VERSION=$(basename "$(readlink /home/vscode/.local/bin/claude)") && \
+    sudo mkdir -p /opt/claude-image/versions && \
+    sudo cp -a /home/vscode/.local/share/claude/versions/"${CLAUDE_VERSION}" /opt/claude-image/versions/ && \
+    echo "${CLAUDE_VERSION}" | sudo tee /opt/claude-image/version > /dev/null
+
 # Install OpenAI Codex
 RUN sudo npm install -g @openai/codex
 
@@ -82,5 +88,9 @@ ENV PATH="/home/vscode/.local/bin:/home/linuxbrew/.linuxbrew/bin:${PATH}"
 ENV SHELL=/usr/bin/zsh
 ENV DISABLE_AUTOUPDATER=true
 
+# Entrypoint: sync Claude from image layer into volume on start
+COPY --chmod=0755 scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
+
 USER vscode
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["zsh", "-l"]
