@@ -26,7 +26,15 @@ RUN printf 'path-include /usr/share/doc/byobu/*\npath-include /usr/share/man/man
         build-essential \
         python3 python3-pip \
         byobu \
-        man-db && \
+        man-db \
+        iputils-ping \
+        dnsutils \
+        traceroute \
+        net-tools \
+        netcat-openbsd \
+        tcpdump \
+        telnet \
+        nmap && \
     # Cleanup
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
