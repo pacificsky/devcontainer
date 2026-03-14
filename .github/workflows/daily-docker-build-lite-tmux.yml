@@ -1,4 +1,4 @@
-name: Daily Docker Image Build
+name: Daily Docker Image Build (Lite+Tmux)
 
 on:
   schedule:
@@ -8,7 +8,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: ${{ github.repository }}-lite-tmux
 
 jobs:
   build:
@@ -47,13 +47,13 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile
+          file: Dockerfile.lite.tmux
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           build-args: |
             CACHEBUST=${{ github.run_id }}
-          cache-from: type=gha,scope=${{ steps.platform.outputs.slug }}
-          cache-to: type=gha,scope=${{ steps.platform.outputs.slug }},mode=max
+          cache-from: type=gha,scope=lite-tmux-${{ steps.platform.outputs.slug }}
+          cache-to: type=gha,scope=lite-tmux-${{ steps.platform.outputs.slug }},mode=max
 
       - name: Export digest
         run: |
@@ -64,7 +64,7 @@ jobs:
       - name: Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: digest-${{ steps.platform.outputs.slug }}
+          name: digest-lite-tmux-${{ steps.platform.outputs.slug }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -81,7 +81,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: /tmp/digests
-          pattern: digest-*
+          pattern: digest-lite-tmux-*
           merge-multiple: true
 
       - name: Set up Docker Buildx
@@ -175,7 +175,7 @@ jobs:
       - name: Delete old daily images
         uses: actions/delete-package-versions@v5
         with:
-          package-name: devcontainer
+          package-name: devcontainer-lite-tmux
           package-type: container
           min-versions-to-keep: 7
           delete-only-untagged-versions: false
