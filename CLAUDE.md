@@ -8,10 +8,11 @@ Docker devcontainer images pre-loaded with AI coding agents (Claude Code, OpenAI
 
 ## Image Variants
 
-- **`Dockerfile`** (full): Dev tools + cloud CLIs (AWS, Azure, GCP) + GitHub CLI
-- **`Dockerfile.lite`**: Dev tools + GitHub CLI only, no cloud CLIs
+- **`Dockerfile`** (full): Dev tools + cloud CLIs (AWS, Azure, GCP) + GitHub CLI + byobu/tmux
+- **`Dockerfile.lite`**: Dev tools + GitHub CLI only, no cloud CLIs, no byobu/tmux
+- **`Dockerfile.lite.tmux`**: Same as lite but with byobu/tmux installed and auto-launched on login
 
-Both share the same base (`mcr.microsoft.com/devcontainers/base:ubuntu`). The full image includes Go, Rust, Node.js LTS, Python 3 + uv. The lite image includes Node.js LTS, Python 3 + uv (no Go/Rust). They also diverge at the cloud CLI layer. Container user is `vscode`.
+Both share the same base (`mcr.microsoft.com/devcontainers/base:ubuntu`). The full image includes Go, Rust, Node.js LTS, Python 3 + uv. The lite images include Node.js LTS, Python 3 + uv (no Go/Rust). They also diverge at the cloud CLI layer. Container user is `vscode`. The plain lite image is designed for use inside environments that already provide a terminal multiplexer (e.g. tmux on a remote VPS host).
 
 ## Base Image Quirks
 
@@ -29,20 +30,25 @@ docker build -t devcontainer:local -f Dockerfile .
 # Build lite image locally
 docker build -t devcontainer-lite:local -f Dockerfile.lite .
 
+# Build lite+tmux image locally
+docker build -t devcontainer-lite-tmux:local -f Dockerfile.lite.tmux .
+
 # Test that core tools are installed
 docker run --rm devcontainer:local /bin/bash -c "command -v claude && command -v codex && command -v gh"
 ```
 
 ## CI/CD
 
-Four GitHub Actions workflows in `.github/workflows/`:
+Six GitHub Actions workflows in `.github/workflows/`:
 
 | Workflow | Trigger | Image |
 |---|---|---|
 | `daily-docker-build.yml` | Daily 3AM PST + manual | full (`ghcr.io/<repo>`) |
 | `daily-docker-build-lite.yml` | Daily 3AM PST + manual | lite (`ghcr.io/<repo>-lite`) |
+| `daily-docker-build-lite-tmux.yml` | Daily 3AM PST + manual | lite+tmux (`ghcr.io/<repo>-lite-tmux`) |
 | `docker-pr-build.yml` | PR touching `Dockerfile` | full (build+test only) |
 | `docker-pr-build-lite.yml` | PR touching `Dockerfile.lite` | lite (build+test only) |
+| `docker-pr-build-lite-tmux.yml` | PR touching `Dockerfile.lite.tmux` | lite+tmux (build+test only) |
 
 Daily builds: multi-arch (amd64/arm64) with digest-based merge, tagged `latest`, `daily-YYYY-MM-DD`, `YYYY-MM-DD`. Keeps last 7 versions. PR builds: single-arch validation with smoke tests.
 
@@ -53,3 +59,5 @@ Layers are ordered by stability (most stable first) to maximize cache hits.
 **Full image**: System packages → uv → Go → Rust → Node.js LTS → Cloud CLIs + GitHub CLI → Shell config → AI tools → ENV/PATH
 
 **Lite image**: System packages → uv → Node.js LTS → GitHub CLI → Shell config → AI tools → ENV/PATH
+
+**Lite+Tmux image**: Same as lite but with byobu (tmux) in the system packages layer and auto-launch in shell config

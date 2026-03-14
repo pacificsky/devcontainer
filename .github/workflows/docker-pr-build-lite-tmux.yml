@@ -1,0 +1,74 @@
+name: Docker PR Build (Lite+Tmux)
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test-lite-tmux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check for relevant changes
+        uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            dockerfile:
+              - 'Dockerfile.lite.tmux'
+              - 'scripts/entrypoint.sh'
+              - '.github/workflows/daily-docker-build-lite-tmux.yml'
+              - '.github/workflows/docker-pr-build-lite-tmux.yml'
+
+      - name: Checkout repository
+        if: steps.changes.outputs.dockerfile == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        if: steps.changes.outputs.dockerfile == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        if: steps.changes.outputs.dockerfile == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.lite.tmux
+          load: true
+          tags: devcontainer-lite-tmux:pr-test
+          cache-from: type=gha,scope=lite-tmux-pr
+          cache-to: type=gha,scope=lite-tmux-pr,mode=max
+
+      - name: Test image functionality
+        if: steps.changes.outputs.dockerfile == 'true'
+        run: |
+          docker run --rm devcontainer-lite-tmux:pr-test /bin/bash -c "
+            echo 'Testing installations...'
+
+            if command -v claude >/dev/null 2>&1; then
+              echo '✅ Claude Code installed'
+            else
+              echo '❌ Claude Code missing' && exit 1
+            fi
+
+            if command -v codex >/dev/null 2>&1; then
+              echo '✅ OpenAI Codex installed'
+            else
+              echo '❌ OpenAI Codex missing' && exit 1
+            fi
+
+            if command -v gh >/dev/null 2>&1; then
+              echo '✅ GitHub CLI installed'
+            else
+              echo '❌ GitHub CLI missing' && exit 1
+            fi
+
+            echo 'All core tools are properly installed!'
+          "

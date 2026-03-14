@@ -12,8 +12,11 @@ RUN if getent group 20 > /dev/null 2>&1; then \
     chown -R 501:20 /home/vscode
 
 # Layer 1: Base system dependencies and utilities (most stable)
+# Re-include byobu docs/man (base image minimized via /etc/dpkg/dpkg.cfg.d/excludes)
+# Filename zz- ensures this is processed AFTER excludes so includes win
 # Remove man stub diversion so man-db can install the real man binary
-RUN rm -f /usr/bin/man && dpkg-divert --quiet --remove --rename /usr/bin/man && \
+RUN printf 'path-include /usr/share/doc/byobu/*\npath-include /usr/share/man/man1/byobu*\n' > /etc/dpkg/dpkg.cfg.d/zz-byobu && \
+    rm -f /usr/bin/man && dpkg-divert --quiet --remove --rename /usr/bin/man && \
     apt-get update && \
     apt-get install -y \
         curl wget unzip \
@@ -22,6 +25,7 @@ RUN rm -f /usr/bin/man && dpkg-divert --quiet --remove --rename /usr/bin/man && 
         make \
         build-essential \
         python3 python3-pip \
+        byobu \
         man-db \
         iputils-ping \
         dnsutils \
@@ -69,7 +73,10 @@ USER vscode
 COPY --chown=vscode:vscode config/.zshrc /home/vscode/.zshrc
 COPY --chown=vscode:vscode config/.p10k.zsh /home/vscode/.p10k.zsh
 RUN git clone --depth=1 https://github.com/romkatv/powerlevel10k.git \
-    ${ZSH_CUSTOM:-/home/vscode/.oh-my-zsh/custom}/themes/powerlevel10k
+    ${ZSH_CUSTOM:-/home/vscode/.oh-my-zsh/custom}/themes/powerlevel10k && \
+    # Enable byobu auto-launch on login
+    printf '_byobu_sourced=1 . /usr/bin/byobu-launch 2>/dev/null || true\n' >> ~/.zprofile && \
+    printf '_byobu_sourced=1 . /usr/bin/byobu-launch 2>/dev/null || true\n' >> ~/.profile
 
 # Layer 7: AI CLI tools (most volatile - frequent releases)
 # Install Claude Code
