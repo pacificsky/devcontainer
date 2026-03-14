@@ -173,7 +173,7 @@ jobs:
 
     steps:
       - name: Delete old daily images
-        uses: actions/delete-package-versions@v4
+        uses: actions/delete-package-versions@v5
         with:
           package-name: devcontainer-lite-tmux
           package-type: container
