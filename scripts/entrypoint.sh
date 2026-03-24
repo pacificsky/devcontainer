@@ -25,6 +25,16 @@ sync_claude() {
 
     [ "$image_version" = "$volume_version" ] && return 0
 
+    # Don't overwrite a newer version already in the volume (e.g. from `claude update`)
+    if [ -n "$volume_version" ]; then
+        local higher
+        higher=$(printf '%s\n%s\n' "$image_version" "$volume_version" | sort -V | tail -n1)
+        if [ "$higher" = "$volume_version" ]; then
+            echo "[entrypoint] Volume has newer Claude ($volume_version), skipping image version ($image_version)"
+            return 0
+        fi
+    fi
+
     echo "[entrypoint] Updating Claude: ${volume_version:-not installed} -> $image_version"
     mkdir -p "$LIVE_SHARE/versions" "$(dirname "$LIVE_BIN")"
     cp -a "$STAGED_DIR/versions/$image_version" "$LIVE_SHARE/versions/$image_version"
