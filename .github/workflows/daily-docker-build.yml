@@ -164,6 +164,22 @@ jobs:
             echo 'All core tools are properly installed!'
           "
 
+      - name: Test runtime UID/GID remap
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:daily-$(date +%Y-%m-%d)"
+          docker run --rm -e HOST_UID=4242 -e HOST_GID=4243 "$IMAGE" /bin/bash -c '
+            set -e
+            echo "Inside container: uid=$(id -u) gid=$(id -g)"
+            [ "$(id -u)" = "4242" ] || { echo "FAIL: UID mismatch (got $(id -u), want 4242)"; exit 1; }
+            [ "$(id -g)" = "4243" ] || { echo "FAIL: GID mismatch (got $(id -g), want 4243)"; exit 1; }
+            touch /home/vscode/probe
+            probe_owner=$(stat -c %u:%g /home/vscode/probe)
+            [ "$probe_owner" = "4242:4243" ] || { echo "FAIL: probe owner $probe_owner != 4242:4243"; exit 1; }
+            zshrc_owner=$(stat -c %u:%g /home/vscode/.zshrc)
+            [ "$zshrc_owner" = "4242:4243" ] || { echo "FAIL: .zshrc owner $zshrc_owner != 4242:4243"; exit 1; }
+            echo "Remap OK"
+          '
+
   cleanup-old-images:
     needs: [merge, test-image]
     runs-on: ubuntu-latest
