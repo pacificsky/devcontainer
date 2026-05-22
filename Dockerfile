@@ -52,12 +52,12 @@ RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.co
 USER root
 
 # Layer 3.1: install prek (pre-commit implementation in Rust)
-COPY --from=ghcr.io/j178/prek:v0.3.4 /prek /usr/local/bin/prek
+COPY --from=ghcr.io/j178/prek:latest /prek /usr/local/bin/prek
 
-# Layer 4: Install Go
-RUN GO_VERSION="1.26.0" && \
+# Layer 4: Install Go (latest stable, fetched from go.dev)
+RUN GO_VERSION=$(curl -fsSL "https://go.dev/VERSION?m=text" | head -n 1) && \
     ARCH=$(dpkg --print-architecture) && \
-    curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${ARCH}.tar.gz" | tar -xzC /usr/local && \
+    curl -fsSL "https://go.dev/dl/${GO_VERSION}.linux-${ARCH}.tar.gz" | tar -xzC /usr/local && \
     echo 'export PATH=/usr/local/go/bin:$PATH' >> /etc/profile
 
 # Layer 5: Install Rust

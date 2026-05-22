@@ -48,7 +48,7 @@ RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.co
 USER root
 
 # Layer 3.1: install prek (pre-commit implementation in Rust)
-COPY --from=ghcr.io/j178/prek:v0.3.4 /prek /usr/local/bin/prek
+COPY --from=ghcr.io/j178/prek:latest /prek /usr/local/bin/prek
 
 # Layer 4: Install Node.js LTS
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
