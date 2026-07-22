@@ -39,18 +39,21 @@ docker run --rm devcontainer:local /bin/bash -c "command -v claude && command -v
 
 ## CI/CD
 
-Six GitHub Actions workflows in `.github/workflows/`:
+Seven GitHub Actions workflows in `.github/workflows/`:
 
 | Workflow | Trigger | Image |
 |---|---|---|
 | `daily-docker-build.yml` | Daily 3AM PST + manual | full (`ghcr.io/<repo>`) |
 | `daily-docker-build-lite.yml` | Daily 3AM PST + manual | lite (`ghcr.io/<repo>-lite`) |
 | `daily-docker-build-lite-tmux.yml` | Daily 3AM PST + manual | lite+tmux (`ghcr.io/<repo>-lite-tmux`) |
-| `docker-pr-build.yml` | PR touching `Dockerfile` | full (build+test only) |
-| `docker-pr-build-lite.yml` | PR touching `Dockerfile.lite` | lite (build+test only) |
-| `docker-pr-build-lite-tmux.yml` | PR touching `Dockerfile.lite.tmux` | lite+tmux (build+test only) |
+| `docker-pr-build.yml` | Any PR | full (build+test only) |
+| `docker-pr-build-lite.yml` | Any PR | lite (build+test only) |
+| `docker-pr-build-lite-tmux.yml` | Any PR | lite+tmux (build+test only) |
+| `keep-alive.yml` | 1st & 15th monthly + manual | n/a (repo activity) |
 
 Daily builds: multi-arch (amd64/arm64) with digest-based merge, tagged `latest`, `daily-YYYY-MM-DD`, `YYYY-MM-DD`. Keeps last 7 versions. PR builds: single-arch validation with smoke tests.
+
+The keep-alive workflow commits a timestamp to `.github/keep-alive.txt` so the repo never hits GitHub's 60-day default-branch inactivity limit, which auto-disables scheduled workflows. It pushes directly to `main` over SSH using a write-access deploy key (`KEEPALIVE_DEPLOY_KEY` secret); deploy keys are the bypass actor in the `main-protection` ruleset, which otherwise requires PRs with passing `build-and-test-*` checks.
 
 ## Dockerfile Layer Strategy
 

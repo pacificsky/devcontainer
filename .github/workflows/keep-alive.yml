@@ -1,0 +1,31 @@
+name: Keep-Alive Activity
+
+on:
+  schedule:
+    # 1st and 15th of every month — commits reset GitHub's 60-day
+    # inactivity timer that disables scheduled workflows
+    - cron: '0 0 1,15 * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # Push via deploy key: deploy keys are the bypass actor in the
+      # main-protection ruleset (GITHUB_TOKEN cannot bypass it)
+      - uses: actions/checkout@v4
+        with:
+          ssh-key: ${{ secrets.KEEPALIVE_DEPLOY_KEY }}
+
+      - name: Update timestamp
+        run: date > .github/keep-alive.txt
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/keep-alive.txt
+          git commit -m "chore: keep-alive workflow active"
+          git push
