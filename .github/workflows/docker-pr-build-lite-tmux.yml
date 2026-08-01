@@ -13,7 +13,23 @@ concurrency:
 
 jobs:
   build-and-test-lite-tmux:
-    runs-on: ubuntu-latest
+    # An explicit name: is required. Without it GitHub appends the matrix
+    # combination to the check name, and the main-protection ruleset requires
+    # the bare context 'build-and-test-lite-tmux' -- which would then never report,
+    # blocking every PR. The suffix keeps amd64 reporting under the existing
+    # required name and adds arm64 as a separate, additive check.
+    name: build-and-test-lite-tmux${{ matrix.suffix }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            suffix: ''
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: '-arm64'
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - name: Check for relevant changes
@@ -45,10 +61,11 @@ jobs:
         with:
           context: .
           file: Dockerfile.lite.tmux
+          platforms: ${{ matrix.platform }}
           load: true
           tags: devcontainer-lite-tmux:pr-test
-          cache-from: type=gha,scope=lite-tmux-pr
-          cache-to: type=gha,scope=lite-tmux-pr,mode=max
+          cache-from: type=gha,scope=lite-tmux-pr-${{ matrix.platform }}
+          cache-to: type=gha,scope=lite-tmux-pr-${{ matrix.platform }},mode=max
 
       - name: Test image functionality
         if: steps.changes.outputs.dockerfile == 'true'
