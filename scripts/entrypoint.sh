@@ -47,8 +47,7 @@ remap_and_reexec() {
             fi
             groupmod -g "$HOST_GID" vscode
             usermod  -u "$HOST_UID" vscode
-            # Chown anything under /home owned by the old UID/GID. Covers
-            # /home/vscode and /home/linuxbrew (full image only).
+            # Chown anything under /home owned by the old UID/GID.
             find /home -uid "$CURRENT_UID" -exec chown -h "$HOST_UID" {} + || true
             find /home -gid "$CURRENT_GID" -exec chgrp -h "$HOST_GID" {} + || true
             # Drop privileges to the freshly-remapped vscode and re-enter the

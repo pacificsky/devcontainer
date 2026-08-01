@@ -42,6 +42,13 @@ jobs:
         id: platform
         run: echo "slug=$(echo '${{ matrix.platform }}' | tr '/' '-')" >> "$GITHUB_OUTPUT"
 
+      # Toolchains and CLIs are refreshed weekly rather than daily, so six
+      # nights out of seven the build reuses those cached layers and only the
+      # AI CLI layers are rebuilt and pushed.
+      - name: Compute weekly toolchain refresh key
+        id: refresh
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@v5
@@ -51,9 +58,13 @@ jobs:
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           build-args: |
-            CACHEBUST=${{ github.run_id }}
-          cache-from: type=gha,scope=lite-${{ steps.platform.outputs.slug }}
-          cache-to: type=gha,scope=lite-${{ steps.platform.outputs.slug }},mode=max
+            TOOLCHAIN_REFRESH=${{ steps.refresh.outputs.week }}
+            AI_CACHEBUST=${{ github.run_id }}
+          # Registry-backed cache: the GitHub Actions cache is capped at 10 GB
+          # per repo, which these images blow past across six mode=max scopes.
+          # Lives in its own package so the cleanup job below can't evict it.
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}-buildcache:lite-${{ steps.platform.outputs.slug }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}-buildcache:lite-${{ steps.platform.outputs.slug }},mode=max,image-manifest=true,oci-mediatypes=true
 
       - name: Export digest
         run: |
@@ -75,6 +86,11 @@ jobs:
     permissions:
       contents: read
       packages: write
+    # The daily tags are gated on is_default_branch, so a workflow_dispatch on
+    # a feature branch produces only the branch-name tag. Publish whichever tag
+    # was actually created so test-image can find the image it just built.
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
 
     steps:
       - name: Download digests
@@ -131,42 +147,34 @@ jobs:
 
       - name: Test image functionality
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:daily-$(date +%Y-%m-%d)"
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.merge.outputs.version }}"
           echo "Testing daily build image: $IMAGE"
 
-          docker run --rm "$IMAGE" /bin/bash -c "
-            echo 'Testing installations...'
+          docker run --rm "$IMAGE" /bin/bash -c '
+            echo "Testing installations..."
+            fail=0
 
-            # Test Claude Code
-            if command -v claude >/dev/null 2>&1; then
-              echo '✅ Claude Code installed'
-              claude --version
-            else
-              echo '❌ Claude Code missing' && exit 1
-            fi
+            for tool in claude codex gh uv prek man; do
+              if command -v "$tool" >/dev/null 2>&1; then
+                echo "✅ $tool -> $(command -v "$tool")"
+              else
+                echo "❌ $tool missing"
+                fail=1
+              fi
+            done
 
-            # Test OpenAI Codex
-            if command -v codex >/dev/null 2>&1; then
-              echo '✅ OpenAI Codex installed'
-              codex --version
-            else
-              echo '❌ OpenAI Codex missing' && exit 1
-            fi
+            claude --version || fail=1
+            codex --version  || fail=1
+            gh --version     || fail=1
+            uv --version     || fail=1
 
-            # Test GitHub CLI
-            if command -v gh >/dev/null 2>&1; then
-              echo '✅ GitHub CLI installed'
-              gh --version
-            else
-              echo '❌ GitHub CLI missing' && exit 1
-            fi
-
-            echo 'All core tools are properly installed!'
-          "
+            [ "$fail" = 0 ] && echo "All core tools are properly installed!"
+            exit $fail
+          '
 
       - name: Test runtime UID/GID remap
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:daily-$(date +%Y-%m-%d)"
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.merge.outputs.version }}"
           docker run --rm -e HOST_UID=4242 -e HOST_GID=4243 "$IMAGE" /bin/bash -c '
             set -e
             echo "Inside container: uid=$(id -u) gid=$(id -g)"
@@ -183,7 +191,9 @@ jobs:
   cleanup-old-images:
     needs: [merge, test-image]
     runs-on: ubuntu-latest
-    if: success()
+    # Deleting published versions is irreversible; never do it from a
+    # workflow_dispatch on a feature branch.
+    if: success() && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     permissions:
       packages: write
 

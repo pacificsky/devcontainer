@@ -53,29 +53,27 @@ jobs:
       - name: Test image functionality
         if: steps.changes.outputs.dockerfile == 'true'
         run: |
-          docker run --rm devcontainer-lite:pr-test /bin/bash -c "
-            echo 'Testing installations...'
+          docker run --rm devcontainer-lite:pr-test /bin/bash -c '
+            echo "Testing installations..."
+            fail=0
 
-            if command -v claude >/dev/null 2>&1; then
-              echo '✅ Claude Code installed'
-            else
-              echo '❌ Claude Code missing' && exit 1
-            fi
+            for tool in claude codex gh uv prek man; do
+              if command -v "$tool" >/dev/null 2>&1; then
+                echo "✅ $tool -> $(command -v "$tool")"
+              else
+                echo "❌ $tool missing"
+                fail=1
+              fi
+            done
 
-            if command -v codex >/dev/null 2>&1; then
-              echo '✅ OpenAI Codex installed'
-            else
-              echo '❌ OpenAI Codex missing' && exit 1
-            fi
+            claude --version || fail=1
+            codex --version  || fail=1
+            gh --version     || fail=1
+            uv --version     || fail=1
 
-            if command -v gh >/dev/null 2>&1; then
-              echo '✅ GitHub CLI installed'
-            else
-              echo '❌ GitHub CLI missing' && exit 1
-            fi
-
-            echo 'All core tools are properly installed!'
-          "
+            [ "$fail" = 0 ] && echo "All core tools are properly installed!"
+            exit $fail
+          '
 
       - name: Test runtime UID/GID remap
         if: steps.changes.outputs.dockerfile == 'true'

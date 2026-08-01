@@ -1,4 +1,4 @@
-# Lite variant: dev tools + AI agents, no cloud CLIs (AWS/Azure/GCP)
+# Lite variant: dev tools + AI agents, no cloud CLIs (AWS/GCP)
 # For the full image with cloud CLIs, use Dockerfile
 FROM mcr.microsoft.com/devcontainers/base:ubuntu
 
@@ -11,14 +11,20 @@ RUN if getent group 20 > /dev/null 2>&1; then \
     usermod -u 501 -g 20 vscode && \
     chown -R 501:20 /home/vscode
 
-# Layer 1: Base system dependencies and utilities (most stable)
+# ---------------------------------------------------------------------------
+# Tier 1 — stable. Only rebuilt when this file changes.
+# ---------------------------------------------------------------------------
+
+# Base system dependencies and utilities
 # Remove man stub diversion so man-db can install the real man binary
+# --no-install-recommends keeps the layer lean; less is listed explicitly
+# because man-db only Recommends a pager and man is unusable without one.
 RUN rm -f /usr/bin/man && dpkg-divert --quiet --remove --rename /usr/bin/man && \
     apt-get update && \
-    apt-get install -y \
+    apt-get install -y --no-install-recommends \
         curl wget unzip \
         jq yq \
-        vim nano \
+        vim nano less \
         make \
         build-essential \
         python3 python3-pip \
@@ -31,61 +37,76 @@ RUN rm -f /usr/bin/man && dpkg-divert --quiet --remove --rename /usr/bin/man && 
         tcpdump \
         telnet \
         nmap && \
+    chsh -s /usr/bin/zsh vscode && \
     # Cleanup
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Layer 2: Install uv (modern Python package manager)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+# ---------------------------------------------------------------------------
+# Tier 2 — toolchains and CLIs. These float to whatever is current at build
+# time, but they rarely change day to day, so the daily workflow only busts
+# them once a week (TOOLCHAIN_REFRESH carries an ISO week number). Six nights
+# out of seven these layers come straight from cache.
+# ---------------------------------------------------------------------------
+ARG TOOLCHAIN_REFRESH
 
-# Cache-bust from here down so daily builds pick up new versions of
-# everything installed via script (Homebrew, Node, GitHub CLI, AI tools)
-ARG CACHEBUST
-
-# Layer 3: Install Homebrew
-USER vscode
-RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-USER root
-
-# Layer 3.1: install prek (pre-commit implementation in Rust)
-COPY --from=ghcr.io/j178/prek:latest /prek /usr/local/bin/prek
-
-# Layer 4: Install Node.js LTS
+# Layer 1: Install Node.js LTS
+# nodesource's setup script runs apt-get update, so this layer has to drop the
+# package lists itself — a later RUN cannot reclaim space from an earlier one.
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
-    apt-get install -y nodejs
-
-# Layer 5: Install GitHub CLI
-RUN mkdir -p -m 755 /etc/apt/keyrings && \
-    wget -nv -O- https://cli.github.com/packages/githubcli-archive-keyring.gpg | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null && \
-    chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null && \
-    apt-get update && apt-get install -y gh && \
+    apt-get install -y --no-install-recommends nodejs && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Layer 6: Shell configuration
-RUN chsh -s /usr/bin/zsh vscode
+# Layer 2: Install GitHub CLI
+RUN mkdir -p -m 755 /etc/apt/keyrings && \
+    wget -nv -O- https://cli.github.com/packages/githubcli-archive-keyring.gpg > /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
+    chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list && \
+    apt-get update && apt-get install -y --no-install-recommends gh && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Layer 3: single-binary tools tracked by upstream :latest tags. Kept at the
+# bottom of this tier so a new upstream digest invalidates only these two tiny
+# layers rather than every toolchain above them.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+COPY --from=ghcr.io/j178/prek:latest /prek /usr/local/bin/prek
+
+# ---------------------------------------------------------------------------
+# Tier 3 — AI CLIs. These genuinely ship most days, so they carry the daily
+# cache-bust and sit last, where rebuilding them costs the least.
+# ---------------------------------------------------------------------------
+ARG AI_CACHEBUST
+
 USER vscode
+
+# Install Claude Code, and stage a copy outside /home/vscode so it survives a
+# volume mount. Install and stage share one layer and the staged copy is
+# hardlinked, so the second copy costs ~0 bytes instead of duplicating ~80 MB.
+RUN curl -fsSL https://claude.ai/install.sh | bash && \
+    CLAUDE_VERSION=$(basename "$(readlink /home/vscode/.local/bin/claude)") && \
+    sudo mkdir -p /opt/claude-image/versions && \
+    sudo cp -al /home/vscode/.local/share/claude/versions/"${CLAUDE_VERSION}" \
+                /opt/claude-image/versions/ && \
+    echo "${CLAUDE_VERSION}" | sudo tee /opt/claude-image/version > /dev/null
+
+# Install OpenAI Codex, dropping the npm tarball cache it leaves behind
+RUN sudo npm install -g @openai/codex && \
+    sudo npm cache clean --force && \
+    npm cache clean --force
+
+# ---------------------------------------------------------------------------
+# Shell configuration last: editing .zshrc or .p10k.zsh then rebuilds ~1 MB
+# instead of invalidating the AI tool layers above it.
+# ---------------------------------------------------------------------------
 COPY --chown=vscode:vscode config/.zshrc /home/vscode/.zshrc
 COPY --chown=vscode:vscode config/.p10k.zsh /home/vscode/.p10k.zsh
 RUN git clone --depth=1 https://github.com/romkatv/powerlevel10k.git \
     ${ZSH_CUSTOM:-/home/vscode/.oh-my-zsh/custom}/themes/powerlevel10k
 
-# Layer 7: AI CLI tools (most volatile - frequent releases)
-# Install Claude Code
-RUN curl -fsSL https://claude.ai/install.sh | bash
-
-# Stage Claude installation outside /home/vscode so it survives volume mounts
-RUN CLAUDE_VERSION=$(basename "$(readlink /home/vscode/.local/bin/claude)") && \
-    sudo mkdir -p /opt/claude-image/versions && \
-    sudo cp -a /home/vscode/.local/share/claude/versions/"${CLAUDE_VERSION}" /opt/claude-image/versions/ && \
-    echo "${CLAUDE_VERSION}" | sudo tee /opt/claude-image/version > /dev/null
-
-# Install OpenAI Codex
-RUN sudo npm install -g @openai/codex
-
-# Layer 8: Final environment setup
-ENV PATH="/home/vscode/.local/bin:/home/linuxbrew/.linuxbrew/bin:${PATH}"
+# Final environment setup
+ENV PATH="/home/vscode/.local/bin:${PATH}"
 ENV SHELL=/usr/bin/zsh
 ENV DISABLE_AUTOUPDATER=true
 

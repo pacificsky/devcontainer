@@ -8,11 +8,20 @@ Docker devcontainer images pre-loaded with AI coding agents (Claude Code, OpenAI
 
 ## Image Variants
 
-- **`Dockerfile`** (full): Dev tools + cloud CLIs (AWS, Azure, GCP) + GitHub CLI + byobu/tmux
+- **`Dockerfile`** (full): Dev tools + cloud CLIs (AWS, GCP) + GitHub CLI + byobu/tmux
 - **`Dockerfile.lite`**: Dev tools + GitHub CLI only, no cloud CLIs, no byobu/tmux
 - **`Dockerfile.lite.tmux`**: Same as lite but with byobu/tmux installed and auto-launched on login
 
 Both share the same base (`mcr.microsoft.com/devcontainers/base:ubuntu`). The full image includes Go, Rust, Node.js LTS, Python 3 + uv. The lite images include Node.js LTS, Python 3 + uv (no Go/Rust). They also diverge at the cloud CLI layer. Container user is `vscode`. The plain lite image is designed for use inside environments that already provide a terminal multiplexer (e.g. tmux on a remote VPS host).
+
+## Anything Installed Under /home/vscode Is At Risk
+
+The intended deployment mounts a named volume at `/home/vscode`, which **shadows whatever the image put there**. Anything a tool installs into the user's home directory is therefore invisible at runtime. Two consequences baked into the Dockerfiles:
+
+- **Rust lives at `/usr/local/{rustup,cargo}`**, not `~/.cargo` — set via `RUSTUP_HOME`/`CARGO_HOME` before `rustup-init` runs, with `chmod -R a+w` so `vscode` can `cargo install`. (An earlier version ran `rustup` as root and left ~1.2 GB in `/root/.cargo`, unreachable by `vscode` and off `PATH` entirely.)
+- **Claude Code cannot avoid `~/.local`**, so the build stages a copy at `/opt/claude-image/` and `scripts/entrypoint.sh` syncs it into the volume on container start. Install and stage happen in **one** `RUN` using `cp -al`, so the staged copy is hardlinked and costs ~0 bytes rather than duplicating ~80 MB in a second layer.
+
+Anything new that installs to the home directory needs the same treatment.
 
 ## Base Image Quirks
 
@@ -53,14 +62,31 @@ Seven GitHub Actions workflows in `.github/workflows/`:
 
 Daily builds: multi-arch (amd64/arm64) with digest-based merge, tagged `latest`, `daily-YYYY-MM-DD`, `YYYY-MM-DD`. Keeps last 7 versions. PR builds: single-arch validation with smoke tests.
 
+Daily builds use **registry-backed** build cache in a separate package, `ghcr.io/<repo>-buildcache`, tagged `<variant>-linux-<arch>`. Two reasons it is not the GitHub Actions cache: the GHA cache is capped at 10 GB per repo, which six `mode=max` scopes of these images exceed (causing constant LRU eviction), and a separate package keeps the cache out of reach of the `cleanup-old-images` job, which deletes all but the newest 7 versions of `devcontainer` regardless of tag. PR builds still use `type=gha` — they have no `packages: write` permission. GHCR requires `image-manifest=true,oci-mediatypes=true` on `cache-to` or it rejects the cache manifest.
+
 The keep-alive workflow commits a timestamp to `.github/keep-alive.txt` so the repo never hits GitHub's 60-day default-branch inactivity limit, which auto-disables scheduled workflows. It pushes directly to `main` over SSH using a write-access deploy key (`KEEPALIVE_DEPLOY_KEY` secret); deploy keys are the bypass actor in the `main-protection` ruleset, which otherwise requires PRs with passing `build-and-test-*` checks.
 
 ## Dockerfile Layer Strategy
 
-Layers are ordered by stability (most stable first) to maximize cache hits.
+All three Dockerfiles are split into three tiers by how often their contents actually change. Each tier is gated by its own `ARG`, and the daily workflows feed those args at different cadences, so a nightly rebuild only produces new layers for the things that genuinely shipped that day.
 
-**Full image**: System packages → uv → Go → Rust → Node.js LTS → Cloud CLIs + GitHub CLI → Shell config → AI tools → ENV/PATH
+| Tier | Gate | Cadence | Contents |
+|---|---|---|---|
+| 1 | none | on file change | UID/GID remap, apt packages, `chsh` |
+| 2 | `TOOLCHAIN_REFRESH` | weekly (`date -u +%G-%V`) | Go, Rust, Node.js, cloud CLIs, GitHub CLI, `uv`, `prek` |
+| 3 | `AI_CACHEBUST` | daily (`github.run_id`) | Claude Code, OpenAI Codex |
 
-**Lite image**: System packages → uv → Node.js LTS → GitHub CLI → Shell config → AI tools → ENV/PATH
+**Full image**: system packages → *[weekly]* Go → Rust → Node.js LTS → cloud CLIs + GitHub CLI → uv + prek → *[daily]* AI tools → shell config → ENV/PATH
 
-**Lite+Tmux image**: Same as lite but with byobu (tmux) in the system packages layer and auto-launch in shell config
+**Lite image**: system packages → *[weekly]* Node.js LTS → GitHub CLI → uv + prek → *[daily]* AI tools → shell config → ENV/PATH
+
+**Lite+Tmux image**: same as lite, plus byobu in the system packages layer and auto-launch in shell config
+
+Ordering rules worth preserving when editing:
+
+- **Shell config (`.zshrc`, `.p10k.zsh`, powerlevel10k) goes last**, below the AI tools. Tweaking zsh config then rebuilds ~1 MB instead of invalidating ~350 MB of AI CLI layers.
+- **`uv` and `prek` sit at the bottom of tier 2.** They are `COPY --from=<image>:latest`, so a new upstream digest invalidates everything below them; last in the tier means that costs two tiny layers, not every toolchain.
+- **Each `RUN` cleans up after itself in the same `RUN`.** A later `rm -rf /var/lib/apt/lists/*` cannot reclaim space an earlier layer already committed — it just adds a whiteout. This is why the Node.js layer drops its own apt lists even though a later layer does the same.
+- Whole-line `#` comments are stripped by Docker before the shell sees them, which is why they can appear mid-`&&`-chain inside a `RUN`.
+
+Several components are trimmed after install: `go/test`, gcloud's `anthoscli` / `.install/.backup` / bundled interpreter (with `CLOUDSDK_PYTHON` pinned to the system one), awscli's bundled help `examples`, `__pycache__` trees, and the npm tarball cache. Rust uses `--profile minimal` plus explicit `clippy`/`rustfmt` to skip `rust-docs`. The PR and daily smoke tests run `--version` on every trimmed tool — a bad trim only surfaces at runtime, so keep those assertions in sync when adding or removing a tool.
