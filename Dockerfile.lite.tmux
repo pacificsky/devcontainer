@@ -62,12 +62,20 @@ RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Layer 2: Install GitHub CLI
-RUN mkdir -p -m 755 /etc/apt/keyrings && \
+# Layer 2: Install GitHub CLI and Docker CLI
+# Docker is client-only (docker-ce-cli + buildx/compose plugins): the daemon is
+# the host's, reached over a docker.sock mount at deploy time. No docker-ce or
+# containerd — that would be docker-in-docker and needs a privileged container.
+RUN ARCH=$(dpkg --print-architecture) && \
+    mkdir -p -m 755 /etc/apt/keyrings && \
     wget -nv -O- https://cli.github.com/packages/githubcli-archive-keyring.gpg > /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
     chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list && \
-    apt-get update && apt-get install -y --no-install-recommends gh && \
+    echo "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list && \
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc && \
+    chmod a+r /etc/apt/keyrings/docker.asc && \
+    echo "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list && \
+    apt-get update && apt-get install -y --no-install-recommends gh \
+        docker-ce-cli docker-buildx-plugin docker-compose-plugin && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

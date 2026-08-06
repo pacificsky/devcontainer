@@ -154,7 +154,7 @@ jobs:
             echo "Testing installations..."
             fail=0
 
-            for tool in claude codex gh uv prek man; do
+            for tool in claude codex gh docker uv prek man; do
               if command -v "$tool" >/dev/null 2>&1; then
                 echo "✅ $tool -> $(command -v "$tool")"
               else
@@ -166,6 +166,9 @@ jobs:
             claude --version || fail=1
             codex --version  || fail=1
             gh --version     || fail=1
+            docker --version || fail=1
+            docker buildx version  || fail=1
+            docker compose version || fail=1
             uv --version     || fail=1
 
             [ "$fail" = 0 ] && echo "All core tools are properly installed!"

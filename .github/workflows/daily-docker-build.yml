@@ -157,7 +157,7 @@ jobs:
             # Every tool must resolve on PATH and actually execute. The version
             # calls matter as much as the lookups: several of these are trimmed
             # in the Dockerfile and a bad trim only shows up at runtime.
-            for tool in claude codex gh aws gcloud go rustc cargo uv prek man; do
+            for tool in claude codex gh docker aws gcloud go rustc cargo uv prek man; do
               if command -v "$tool" >/dev/null 2>&1; then
                 echo "✅ $tool -> $(command -v "$tool")"
               else
@@ -169,6 +169,9 @@ jobs:
             claude --version || fail=1
             codex --version  || fail=1
             gh --version     || fail=1
+            docker --version || fail=1
+            docker buildx version  || fail=1
+            docker compose version || fail=1
             aws --version    || fail=1
             gcloud --version || fail=1
             go version       || fail=1
