@@ -154,7 +154,7 @@ jobs:
             echo "Testing installations..."
             fail=0
 
-            for tool in claude codex gh docker uv prek man; do
+            for tool in claude codex gh docker brew uv prek man; do
               if command -v "$tool" >/dev/null 2>&1; then
                 echo "✅ $tool -> $(command -v "$tool")"
               else
@@ -169,6 +169,10 @@ jobs:
             docker --version || fail=1
             docker buildx version  || fail=1
             docker compose version || fail=1
+            # First brew call bootstraps Homebrew via the shim; bottles only
+            # work at the exact default prefix, so assert the shim produced it.
+            brew --version   || fail=1
+            [ "$(brew --prefix)" = "/home/linuxbrew/.linuxbrew" ] || { echo "❌ brew prefix wrong"; fail=1; }
             uv --version     || fail=1
 
             [ "$fail" = 0 ] && echo "All core tools are properly installed!"
