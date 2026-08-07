@@ -8,11 +8,13 @@ Docker devcontainer images pre-loaded with AI coding agents (Claude Code, OpenAI
 
 ## Image Variants
 
-- **`Dockerfile`** (full): Dev tools + cloud CLIs (AWS, GCP) + GitHub CLI + byobu/tmux
-- **`Dockerfile.lite`**: Dev tools + GitHub CLI only, no cloud CLIs, no byobu/tmux
+- **`Dockerfile`** (full): Dev tools + cloud CLIs (AWS, GCP) + GitHub CLI + Docker CLI + byobu/tmux
+- **`Dockerfile.lite`**: Dev tools + GitHub CLI + Docker CLI only, no cloud CLIs, no byobu/tmux
 - **`Dockerfile.lite.tmux`**: Same as lite but with byobu/tmux installed and auto-launched on login
 
 Both share the same base (`mcr.microsoft.com/devcontainers/base:ubuntu`). The full image includes Go, Rust, Node.js LTS, Python 3 + uv. The lite images include Node.js LTS, Python 3 + uv (no Go/Rust). They also diverge at the cloud CLI layer. Container user is `vscode`. The plain lite image is designed for use inside environments that already provide a terminal multiplexer (e.g. tmux on a remote VPS host).
+
+All variants ship a **client-only Docker install** (`docker-ce-cli` + buildx and compose plugins, no daemon): the deployment mounts the host's `/var/run/docker.sock` so containers can build and run images via the outer daemon. Whether `vscode` can reach the mounted socket depends on the host socket's group — handled at deploy time, not in the image (`sudo docker` always works as a fallback).
 
 ## Anything Installed Under /home/vscode Is At Risk
 
@@ -75,12 +77,12 @@ All three Dockerfiles are split into three tiers by how often their contents act
 | Tier | Gate | Cadence | Contents |
 |---|---|---|---|
 | 1 | none | on file change | UID/GID remap, apt packages, `chsh` |
-| 2 | `TOOLCHAIN_REFRESH` | weekly (`date -u +%G-%V`) | Go, Rust, Node.js, cloud CLIs, GitHub CLI, `uv`, `prek` |
+| 2 | `TOOLCHAIN_REFRESH` | weekly (`date -u +%G-%V`) | Go, Rust, Node.js, cloud CLIs, GitHub CLI, Docker CLI, `uv`, `prek` |
 | 3 | `AI_CACHEBUST` | daily (`github.run_id`) | Claude Code, OpenAI Codex |
 
-**Full image**: system packages → *[weekly]* Go → Rust → Node.js LTS → cloud CLIs + GitHub CLI → uv + prek → *[daily]* AI tools → shell config → ENV/PATH
+**Full image**: system packages → *[weekly]* Go → Rust → Node.js LTS → cloud CLIs + GitHub CLI + Docker CLI → uv + prek → *[daily]* AI tools → shell config → ENV/PATH
 
-**Lite image**: system packages → *[weekly]* Node.js LTS → GitHub CLI → uv + prek → *[daily]* AI tools → shell config → ENV/PATH
+**Lite image**: system packages → *[weekly]* Node.js LTS → GitHub CLI + Docker CLI → uv + prek → *[daily]* AI tools → shell config → ENV/PATH
 
 **Lite+Tmux image**: same as lite, plus byobu in the system packages layer and auto-launch in shell config
 

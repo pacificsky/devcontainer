@@ -82,9 +82,12 @@ RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Layer 4: Install cloud CLIs (AWS, Google Cloud) and GitHub CLI
+# Layer 4: Install cloud CLIs (AWS, Google Cloud), GitHub CLI, and Docker CLI
 # Pointing gcloud at the system interpreter lets the bundled one go, if the
 # package ships one at all.
+# Docker is client-only (docker-ce-cli + buildx/compose plugins): the daemon is
+# the host's, reached over a docker.sock mount at deploy time. No docker-ce or
+# containerd — that would be docker-in-docker and needs a privileged container.
 ENV CLOUDSDK_PYTHON=/usr/bin/python3
 RUN ARCH=$(dpkg --print-architecture) && \
     case "$ARCH" in \
@@ -104,8 +107,13 @@ RUN ARCH=$(dpkg --print-architecture) && \
     wget -nv -O- https://cli.github.com/packages/githubcli-archive-keyring.gpg > /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
     chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
     echo "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list && \
+    # Install Docker CLI (client only — see layer comment above)
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc && \
+    chmod a+r /etc/apt/keyrings/docker.asc && \
+    echo "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends google-cloud-cli gh && \
+    apt-get install -y --no-install-recommends google-cloud-cli gh \
+        docker-ce-cli docker-buildx-plugin docker-compose-plugin && \
     # Trim: awscli's bundled help examples, gcloud's Anthos binary (~100 MB),
     # the component manager's rollback copies, and the bundled interpreter.
     find /usr/local/aws-cli -type d -name examples -prune -exec rm -rf {} + && \
