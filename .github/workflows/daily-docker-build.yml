@@ -157,7 +157,7 @@ jobs:
             # Every tool must resolve on PATH and actually execute. The version
             # calls matter as much as the lookups: several of these are trimmed
             # in the Dockerfile and a bad trim only shows up at runtime.
-            for tool in claude codex gh docker aws gcloud go rustc cargo uv prek man; do
+            for tool in claude codex gh docker brew aws gcloud go rustc cargo uv prek man; do
               if command -v "$tool" >/dev/null 2>&1; then
                 echo "✅ $tool -> $(command -v "$tool")"
               else
@@ -172,6 +172,10 @@ jobs:
             docker --version || fail=1
             docker buildx version  || fail=1
             docker compose version || fail=1
+            # First brew call bootstraps Homebrew via the shim; bottles only
+            # work at the exact default prefix, so assert the shim produced it.
+            brew --version   || fail=1
+            [ "$(brew --prefix)" = "/home/linuxbrew/.linuxbrew" ] || { echo "❌ brew prefix wrong"; fail=1; }
             aws --version    || fail=1
             gcloud --version || fail=1
             go version       || fail=1

@@ -120,8 +120,19 @@ RUN git clone --depth=1 https://github.com/romkatv/powerlevel10k.git \
     printf '_byobu_sourced=1 . /usr/bin/byobu-launch 2>/dev/null || true\n' >> ~/.zprofile && \
     printf '_byobu_sourced=1 . /usr/bin/byobu-launch 2>/dev/null || true\n' >> ~/.profile
 
+# Lazy Homebrew: /usr/local/bin/brew is a shim that installs Homebrew into
+# /home/linuxbrew/.linuxbrew on first use — the image carries zero Homebrew
+# bytes, and deployments mount a volume at /home/linuxbrew to persist
+# installs. PATH lists the real prefix first, so the shim is unreachable once
+# Homebrew exists. /home/linuxbrew must stay a real directory, never a
+# symlink into /home/vscode: bin/brew resolves its location with `pwd -P`,
+# and Linux bottles only work at the literal /home/linuxbrew/.linuxbrew
+# physical prefix.
+COPY --chmod=0755 scripts/brew-shim.sh /usr/local/bin/brew
+RUN sudo install -d -o vscode -g vscode /home/linuxbrew
+
 # Final environment setup
-ENV PATH="/home/vscode/.local/bin:${PATH}"
+ENV PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/home/vscode/.local/bin:${PATH}"
 ENV SHELL=/usr/bin/zsh
 ENV DISABLE_AUTOUPDATER=true
 
