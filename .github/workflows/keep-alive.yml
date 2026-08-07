@@ -15,7 +15,7 @@ jobs:
     steps:
       # Push via deploy key: deploy keys are the bypass actor in the
       # main-protection ruleset (GITHUB_TOKEN cannot bypass it)
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ssh-key: ${{ secrets.KEEPALIVE_DEPLOY_KEY }}
 
