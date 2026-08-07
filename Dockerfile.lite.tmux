@@ -30,6 +30,7 @@ RUN printf 'path-include /usr/share/doc/byobu/*\npath-include /usr/share/man/man
         vim nano less \
         make \
         build-essential \
+        file \
         python3 python3-pip \
         byobu \
         man-db \
