@@ -47,6 +47,29 @@ RUN printf 'path-include /usr/share/doc/byobu/*\npath-include /usr/share/man/man
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Chromium's system dependencies, so headless browsers fetched by Playwright,
+# Puppeteer & co. start without an apt run (see issue #31). This is Playwright's
+# complete `install-deps chromium` table for this Ubuntu release -- runtime
+# libraries, xvfb for headed mode, and the fonts it expects for Latin, CJK,
+# Thai and emoji coverage -- so `playwright install-deps --dry-run chromium`
+# reports clean and the smoke tests assert exactly that. ~175 MB of the ~300 MB
+# is mesa+LLVM behind libgbm1, which Chromium links directly; the rest is
+# mostly fonts. The browser build itself is deliberately NOT baked in: its
+# revision is pinned by each project's playwright version, and
+# ~/.cache/ms-playwright lives on the home volume so it survives rebuilds.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libasound2t64 libatk-bridge2.0-0t64 libatk1.0-0t64 libatspi2.0-0t64 \
+        libcairo2 libcups2t64 libdbus-1-3 libdrm2 libgbm1 libglib2.0-0t64 \
+        libnspr4 libnss3 libpango-1.0-0 libx11-6 libxcb1 libxcomposite1 \
+        libxdamage1 libxext6 libxfixes3 libxkbcommon0 libxrandr2 \
+        xvfb libfontconfig1 libfreetype6 \
+        fonts-liberation fonts-noto-color-emoji fonts-unifont fonts-freefont-ttf \
+        fonts-ipafont-gothic fonts-wqy-zenhei fonts-tlwg-loma-otf \
+        xfonts-cyrillic xfonts-scalable && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # ---------------------------------------------------------------------------
 # Tier 2 — toolchains and CLIs. These float to whatever is current at build
 # time, but they rarely change day to day, so the daily workflow only busts
