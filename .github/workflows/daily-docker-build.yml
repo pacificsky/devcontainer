@@ -207,9 +207,14 @@ jobs:
             # check must come back clean (it reads dpkg status, no apt lists needed).
             npx --yes playwright-core@latest install-deps --dry-run chromium \
               || { echo "❌ playwright install-deps reports missing packages"; fail=1; }
-            for bin in ~/.cache/ms-playwright/chromium-*/chrome-linux*/chrome \
-                       ~/.cache/ms-playwright/chromium_headless_shell-*/chrome-linux*/headless_shell; do
-              [ -x "$bin" ] || { echo "❌ $bin not found"; fail=1; continue; }
+            # Directory layout differs per arch (chrome-linux64/chrome and
+            # chrome-headless-shell-linux64/chrome-headless-shell on amd64,
+            # chrome-linux/{chrome,headless_shell} on arm64), so locate by name.
+            bins=$(find ~/.cache/ms-playwright -type f \
+                     \( -name chrome -o -name headless_shell -o -name chrome-headless-shell \))
+            [ "$(echo "$bins" | grep -c .)" -ge 2 ] \
+              || { echo "❌ expected chrome and headless shell binaries, found: $bins"; fail=1; }
+            for bin in $bins; do
               missing=$(ldd "$bin" | grep "not found" || true)
               if [ -n "$missing" ]; then
                 echo "❌ $bin is missing system libraries:"; echo "$missing"; fail=1
