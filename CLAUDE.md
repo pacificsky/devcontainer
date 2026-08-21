@@ -18,6 +18,10 @@ All variants ship a **client-only Docker install** (`docker-ce-cli` + buildx and
 
 All variants also ship **lazy Homebrew**: `/usr/local/bin/brew` is a shim (`scripts/brew-shim.sh`) that clones Homebrew into `/home/linuxbrew/.linuxbrew` on first use, so the image carries zero Homebrew bytes and users who never `brew` pay nothing. Deployments mount a volume at `/home/linuxbrew` (a second mount of the home volume, a `volume-subpath`, or a dedicated volume) so installs persist across image upgrades; without the mount, brew still works but is ephemeral. **`/home/linuxbrew` must be a real directory or mount point — never a symlink into `/home/vscode`.** `bin/brew` canonicalizes its own location with `pwd -P`, so behind a symlink it computes a physical prefix other than `/home/linuxbrew/.linuxbrew`, and Linux bottles only work at that exact prefix — everything silently degrades to building from source. The smoke tests assert `brew --prefix` returns the literal default prefix to catch this. Homebrew never needs sudo here: the image bakes an empty vscode-owned `/home/linuxbrew`, and the entrypoint's UID-remap `find /home` sweep covers it. Homebrew's apt prerequisites (`build-essential procps curl file git`) are all satisfied by tier 1 plus the base image — `file` is in the tier-1 list specifically for this, so don't drop it casually.
 
+## Chromium System Libraries
+
+All variants bake in Chromium's **system dependencies** (issue #31) so a headless browser fetched by Playwright/Puppeteer launches without `install-deps`, which otherwise needs sudo, network, and ~30 s on every rebuild. The list is Playwright's complete `install-deps chromium` table for the current Ubuntu release — runtime libraries, `xvfb`, and its font set (Liberation, Noto colour emoji, unifont, CJK, Thai) — so `playwright install-deps --dry-run chromium` reports clean and the smoke tests assert exactly that; when upgrading the Ubuntu base, re-derive the list from that command. ~175 MB of the ~300 MB is mesa + LLVM behind `libgbm1`, which Chromium links directly, so there is no cheaper list; the rest is mostly fonts. The browser build itself is **not** baked in: its revision is coupled to each project's playwright version and `~/.cache/ms-playwright` lives on the home volume anyway. The libs sit in tier 1 because they are distro packages that only change with the Ubuntu release, the same as every other apt package. The smoke tests download a real Chromium via `playwright-core@latest`, run its `install-deps --dry-run`, `ldd` both `chrome` and `headless_shell`, and take a headless screenshot — `@latest` is deliberate, so a newer Playwright needing a package the image lacks fails CI rather than a user's session.
+
 ## Anything Installed Under /home/vscode Is At Risk
 
 The intended deployment mounts a named volume at `/home/vscode`, which **shadows whatever the image put there**. Anything a tool installs into the user's home directory is therefore invisible at runtime. Two consequences baked into the Dockerfiles:
@@ -78,13 +82,13 @@ All three Dockerfiles are split into three tiers by how often their contents act
 
 | Tier | Gate | Cadence | Contents |
 |---|---|---|---|
-| 1 | none | on file change | UID/GID remap, apt packages, `chsh` |
+| 1 | none | on file change | UID/GID remap, apt packages, Chromium libs, `chsh` |
 | 2 | `TOOLCHAIN_REFRESH` | weekly (`date -u +%G-%V`) | Go, Rust, Node.js, cloud CLIs, GitHub CLI, Docker CLI, `uv`, `prek` |
 | 3 | `AI_CACHEBUST` | daily (`github.run_id`) | Claude Code, OpenAI Codex |
 
-**Full image**: system packages → *[weekly]* Go → Rust → Node.js LTS → cloud CLIs + GitHub CLI + Docker CLI → uv + prek → *[daily]* AI tools → shell config → ENV/PATH
+**Full image**: system packages → Chromium libs → *[weekly]* Go → Rust → Node.js LTS → cloud CLIs + GitHub CLI + Docker CLI → uv + prek → *[daily]* AI tools → shell config → ENV/PATH
 
-**Lite image**: system packages → *[weekly]* Node.js LTS → GitHub CLI + Docker CLI → uv + prek → *[daily]* AI tools → shell config → ENV/PATH
+**Lite image**: system packages → Chromium libs → *[weekly]* Node.js LTS → GitHub CLI + Docker CLI → uv + prek → *[daily]* AI tools → shell config → ENV/PATH
 
 **Lite+Tmux image**: same as lite, plus byobu in the system packages layer and auto-launch in shell config
 

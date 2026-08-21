@@ -111,6 +111,45 @@ jobs:
             exit $fail
           '
 
+      - name: Test headless Chromium
+        if: steps.changes.outputs.dockerfile == 'true'
+        run: |
+          # Chromium's system libraries are baked into the image (#31). Fetch a
+          # real browser build the way Playwright would and prove it links and
+          # renders, rather than trusting the package list: a missing library
+          # only surfaces at launch. playwright-core@latest is deliberate -- if
+          # a new Playwright starts needing a library the image lacks, this is
+          # where that should show up.
+          docker run --rm devcontainer:pr-test /bin/bash -c '
+            cd "$(mktemp -d)" || exit 1
+            npx --yes playwright-core@latest install chromium || exit 1
+            fail=0
+            # The image carries the full Playwright dependency table, so its own
+            # check must come back clean (it reads dpkg status, no apt lists needed).
+            npx --yes playwright-core@latest install-deps --dry-run chromium \
+              || { echo "❌ playwright install-deps reports missing packages"; fail=1; }
+            # Directory layout differs per arch (chrome-linux64/chrome and
+            # chrome-headless-shell-linux64/chrome-headless-shell on amd64,
+            # chrome-linux/{chrome,headless_shell} on arm64), so locate by name.
+            bins=$(find ~/.cache/ms-playwright -type f \
+                     \( -name chrome -o -name headless_shell -o -name chrome-headless-shell \))
+            [ "$(echo "$bins" | grep -c .)" -ge 2 ] \
+              || { echo "❌ expected chrome and headless shell binaries, found: $bins"; fail=1; }
+            for bin in $bins; do
+              missing=$(ldd "$bin" | grep "not found" || true)
+              if [ -n "$missing" ]; then
+                echo "❌ $bin is missing system libraries:"; echo "$missing"; fail=1
+              else
+                echo "✅ $bin links cleanly"
+              fi
+            done
+            npx --yes playwright-core@latest screenshot --browser chromium \
+              "data:text/html;charset=utf-8,<h1>headless ok</h1>" shot.png || fail=1
+            file shot.png | grep -q "PNG image" || { echo "❌ headless screenshot failed"; fail=1; }
+            [ "$fail" = 0 ] && echo "Headless Chromium works!"
+            exit $fail
+          '
+
       - name: Test runtime UID/GID remap
         if: steps.changes.outputs.dockerfile == 'true'
         run: |
